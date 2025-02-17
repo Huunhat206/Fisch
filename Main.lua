@@ -5,7 +5,7 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 
 local loadConfig, parseuptime, formattime, tp, teleport, creategui, createframe, notifygui, minimizegui, askautohop,chesttpscan, scanchest, potentialsunkenchest, loadedsunkenchest, claimsunkenchest, issunkenchest, convertEventString, sendwebhook, haschildren, scanWorld, notify, scan
 local config, cacheFile
-local data = loadstring(game:HttpGet("https://raw.githubusercontent.com/P3nguinMinecraft/FischScripts/main/fsf-data.lua"))()
+local data = loadstring(game:HttpGet("https://raw.githubusercontent.com/Huunhat206/Fisch/refs/heads/main/Data.lua"))()
 local scriptvers = "2.1"
 local checkteleporting = false
 local loadedmsg = false
@@ -49,7 +49,7 @@ loadConfig = function()
         writefile("FischServerFinder/config.json", game:GetService("HttpService"):JSONEncode(data.defaultConfig))
         notifygui("Welcome to FSF! Change config as needed")
         task.spawn(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/P3nguinMinecraft/FischScripts/main/fsf-gui.lua"))()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Huunhat206/Fisch/refs/heads/main/Gui.lua"))()
         end)
     end
 
@@ -83,7 +83,7 @@ loadConfig = function()
             notifygui("Settings have changed!")
             notifygui(data.settingmsg)
             task.spawn(function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/P3nguinMinecraft/FischScripts/main/fsf-gui.lua"))()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/Huunhat206/Fisch/refs/heads/main/Gui.lua"))()
             end)
         end
     end
