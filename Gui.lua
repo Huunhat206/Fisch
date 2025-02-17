@@ -7,7 +7,7 @@ print("[FSF-G] Loading GUI")
 getgenv().SecureMode = true
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local data = loadstring(game:HttpGet("https://raw.githubusercontent.com/P3nguinMinecraft/FischScripts/main/fsf-data.lua"))()
+local data = loadstring(game:HttpGet("https://raw.githubusercontent.com/Huunhat206/Fisch/refs/heads/main/Data.lua"))()
 
 if not isfile("FischServerFinder/config.json") and writefile then
     if not isfolder("FischServerFinder") then
