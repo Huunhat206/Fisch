@@ -1,178 +1,220 @@
-local data_version = "2.2"
-local data_versid = "Pb8ea0eyhYVvMwpE"
-local updmsg = "Failsafe autohop!"
-local settingchanged = false
-local settingmsg = ""
-local link = "https://discord.gg/fWncS2vFx"
+local on = true
+----------------
 
-local sunkenchestcoords = {
--- Moosewood
-    {x = 936, y = 130, z = -159},
-    {x = 693, y = 130, z = -362},
-    {x = 613, y = 130, z = 498},
-    {x = 285, y = 130, z = 564},
-    {x = 283, y = 130, z = -159},
--- Roslit Bay
-    {x = -1179, y = 130, z = 565},
-    {x = -1217, y = 130, z = 201},
-    {x = -1967, y = 130, z = 980},
-    {x = -2444, y = 130, z = 266},
-    {x = -2444, y = 130, z = -37},
--- Sunstone Island
-    {x = -852, y = 130, z = -1560},
-    {x = -1000, y = 130, z = -751},
-    {x = -1500, y = 130, z = -750},
-    {x = -1547, y = 130, z = -1080},
-    {x = -1618, y = 130, z = -1560},
--- Terrapin Island
-    {x = 798, y = 130, z = 1667},
-    {x = 562, y = 130, z = 2455},
-    {x = 393, y = 130, z = 2435},
-    {x = -1, y = 130, z = 1632},
-    {x = -190, y = 130, z = 2450},
--- Mushgrove Swamp
-    {x = 2890, y = 130, z = -997},
-    {x = 2729, y = 130, z = -1098},
-    {x = 2410, y = 130, z = -1110},
-    {x = 2266, y = 130, z = -721},
--- Forsaken Shores
-    {x = -2460, y = 130, z = 2047},
-} -- coords sourced from Fisch Wiki
+if not game:IsLoaded() then game.Loaded:Wait() end
 
-local defaultConfig = {
-    autoscan = true,
-    autohop = false,
+local givequest, completequest, getfish, getitem, equipfish, findfishreq, toggleautoquest
 
-    autowebhook = false,
-    webhookUrl = "https://discord.com/api/webhooks/#/#",
+local taskCoroutine
+local isRunning = false
 
-    filename = "servers",
+local gui = game.Players.LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("QuestGui")
+if gui then
+    gui:Destroy()
+    isRunning = false
+    taskCoroutine = nil
+end
 
-    infoList = {
-        autouptime = false,
-        autoversion = false,
-        autoplaceversion = false,
-    },
+if not on then return end
 
-    weatherList = {
-        ["Clear"] = false,
-        ["Foggy"] = false,
-        ["Windy"] = false,
-        ["Rain"] = false,
-        ["Eclipse"] = false,
-        ["Aurora Borealis"] = true,
-    },
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "QuestGui"
+screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
-    eventList = {
-        ["Night of the Fireflies"] = false,
-        ["Night of the Luminous"] = false,
-        ["Shiny Surge"] = false,
-        ["Mutation Surge"] = false,
-    },
+local frame = Instance.new("Frame")
+frame.Name = "DraggableFrame"
+frame.Size = UDim2.new(0.15, 0, 0.3, 0)
+frame.Position = UDim2.new(0.435, 0, 0.35, 0)
+frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
 
-    seasonList = {
-        ["Spring"] = false,
-        ["Summer"] = false,
-        ["Fall"] = false,
-        ["Winter"] = false,
-    },
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(0.95, 0, 0.2, 0)
+titleLabel.Position = UDim2.new(0.5, 0, 0, 0)
+titleLabel.Text = "Welcome to AnglerQuest!"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.SourceSans
+titleLabel.TextScaled = true
+titleLabel.BackgroundTransparency = 1
+titleLabel.AnchorPoint = Vector2.new(0.5, 0)
+titleLabel.Parent = frame
 
-    cycleList = {
-        ["Day"] = false,
-        ["Night"] = false,
-    },
+local button1 = Instance.new("TextButton")
+button1.Name = "QuestButton"
+button1.Size = UDim2.new(0.95, 0, 0.18, 0)
+button1.Position = UDim2.new(0.5, 0, 0.2, 0)
+button1.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+button1.Text = "Depths Angler Quest"
+button1.TextColor3 = Color3.fromRGB(255, 255, 255)
+button1.Font = Enum.Font.SourceSans
+button1.TextSize = 24
+button1.AnchorPoint = Vector2.new(0.5, 0)
+button1.Parent = frame
 
-    luckList = {
-        enabled = true,
-        min = 8,
-    },
+button1.MouseButton1Click:Connect(function()
+    titleLabel.Text = "Quest Given!"
+    givequest()
+end)
 
-    versionList = {
-        enabled = false,
-        version = "x.x",
-    },
+local button2 = Instance.new("TextButton")
+button2.Name = "CompleteQuestButton"
+button2.Size = UDim2.new(0.95, 0, 0.18, 0)
+button2.Position = UDim2.new(0.5, 0, 0.39, 0)
+button2.BackgroundColor3 = Color3.fromRGB(200, 200, 100)
+button2.Text = "Complete Quest"
+button2.TextColor3 = Color3.fromRGB(255, 255, 255)
+button2.Font = Enum.Font.SourceSans
+button2.TextSize = 24
+button2.AnchorPoint = Vector2.new(0.5, 0)
+button2.Parent = frame
 
-    placeVersionList = {
-        enabled = false,
-        version = 1234,
-    },
-    
-    uptimeList = {
-        beforeTime = {
-            enabled = false,
-            hour = 0,
-            minute = 0,
-        },
+button2.MouseButton1Click:Connect(function()
+    titleLabel.Text = "Attempted Complete Quest!"
+    completequest()
+end)
 
-        afterTime = {
-            enabled = false,
-            hour = 0,
-            minute = 0,
-        },
+local button3 = Instance.new("TextButton")
+button3.Name = "AutoQuestButton"
+button3.Size = UDim2.new(0.95, 0, 0.19, 0)
+button3.Position = UDim2.new(0.5, 0, 0.58, 0)
+button3.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+button3.Text = "Auto Quest"
+button3.TextColor3 = Color3.fromRGB(255, 255, 255)
+button3.Font = Enum.Font.SourceSans
+button3.TextSize = 24
+button3.AnchorPoint = Vector2.new(0.5, 0)
+button3.Parent = frame
 
-        orLogic = true,
-    },
+button3.MouseButton1Click:Connect(function()
+    toggleautoquest()
+end)
 
-    zoneList = {
-        ["Megalodon Default"] = true,
-        ["Megalodon Ancient"] = true,
-        ["Great White Shark"] = false,
-        ["Great Hammerhead Shark"] = false,
-        ["Whale Shark"] = false,
-        ["The Kraken Pool"] = true,
-        ["Ancient Kraken Pool"] = true,
-        ["Orcas Pool"] = true,
-        ["Ancient Orcas Pool"] = true,
-        ["Lovestorm Eel"] = true,
-        ["Lovestorm Eel Supercharged"] = true,
-    },
+local button4 = Instance.new("TextButton")
+button4.Name = "TPButton"
+button4.Size = UDim2.new(0.95, 0, 0.19, 0)
+button4.Position = UDim2.new(0.5, 0, 0.77, 0)
+button4.BackgroundColor3 = Color3.fromRGB(69, 252, 255)
+button4.Text = "TP To Angler"
+button4.TextColor3 = Color3.fromRGB(255, 255, 255)
+button4.Font = Enum.Font.SourceSans
+button4.TextSize = 24
+button4.AnchorPoint = Vector2.new(0.5, 0)
+button4.Parent = frame
 
-    meteorList = {
-        ["Amethyst"] = false,
-        ["Ruby"] = false,
-        ["Opal"] = false,
-        ["Lapis Lazuli"] = false,
-        ["Moonstone"] = true,
-    },
+button4.MouseButton1Click:Connect(function()
+    game:GetService("Players").LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(Vector3.new(981, -703, 1232))
+end)
 
-    sunkenchestList = {
-        enabled = true,
-        bufferbefore = 1,
-        alertonload = true,
-        autofarm = false,
-        hopafterclaim = false,
-        forcehop = false,
-    },
+givequest = function()
+    local angler = game:GetService("Workspace"):WaitForChild("world"):WaitForChild("npcs"):FindFirstChild("The Depths Angler")
+    if angler then
+       angler.angler.giveQuest:InvokeServer()
+    else
+       titleLabel.Text = "Angler NPC not found!"
+    end
+end
 
-    version = data_version,
-    versid = data_versid,
-}
+completequest = function()
+    local angler = game:GetService("Workspace"):WaitForChild("world"):WaitForChild("npcs"):FindFirstChild("The Depths Angler")
+    if angler then
+        angler.angler.questCompleted:InvokeServer()
+    else
+        titleLabel.Text = "Angler NPC not found!"
+    end
+end
 
-local ordered = {
-    weatherList = {"Clear", "Foggy", "Windy", "Rain", "Eclipse", "Aurora Borealis",},
-    eventList = {"Night of the Fireflies", "Night of the Luminous", "Shiny Surge", "Mutation Surge",},
-    seasonList = {"Spring", "Summer", "Fall", "Winter",},
-    cycleList = {"Day", "Night",},
-    zoneList = { 
-        "Megalodon Default", "Megalodon Ancient",
-        "Great White Shark", "Great Hammerhead Shark", "Whale Shark", 
-        "The Kraken Pool", "Ancient Kraken Pool",
-        "Orcas Pool", "Ancient Orcas Pool",
-        "Lovestorm Eel", "Lovestorm Eel Supercharged",
-    },
-    meteorList = { "Amethyst", "Ruby", "Opal", "Lapis Lazuli", "Moonstone" }
-}
+getfish = function(fishname)
+    local plrname = game:GetService("Players").LocalPlayer.Name
+    local inventory = game:GetService("ReplicatedStorage").playerstats:WaitForChild(plrname).Inventory:GetChildren()
 
-local data = {
-    version = data_version,
-    versid = data_versid,
-    updmsg = updmsg,
-    settingchanged = settingchanged,
-    settingmsg = settingmsg,
-    link = link,
-    sunkenchestcoords = sunkenchestcoords,
-    defaultConfig = defaultConfig,
-    ordered = ordered,
-}
+    for _, item in ipairs(inventory) do
+        local itemname = item.Name
+        if string.find(string.gsub(itemname, "-", ""), string.gsub(fishname, "-", "")) then
+            local favorited = item:FindFirstChild("Favourited")
+            if not favorited or favorited.Value == false then
+                return itemname
+            end
+        end
+    end
+    print("None found in inventory")
+    return nil
+end
 
-return data
+getitem = function(fishname)
+    local id = getfish(fishname)
+    if id then
+        local backpack = game:GetService("Players").LocalPlayer.Backpack:GetChildren()
+        for _, item in ipairs(backpack) do
+            if item.Name == fishname and item:FindFirstChild("link") then
+                local linkid = tostring(item.link.Value)
+                if string.match(string.gsub(linkid, "-", ""), string.gsub(id, "-", "")) then
+                    return item
+                end
+            end
+        end
+    end
+    print("None found in backpack")
+    return nil
+end
+
+equipfish = function(fishname)
+    local item = getitem(fishname)
+    if item then
+        game:GetService("ReplicatedStorage"):WaitForChild("packages"):WaitForChild("Net"):WaitForChild("RE/Backpack/Equip"):FireServer(item)
+        completequest()
+        game:GetService("ReplicatedStorage"):WaitForChild("packages"):WaitForChild("Net"):WaitForChild("RE/Backpack/Equip"):FireServer(item)
+        titleLabel.Text = "Completed " .. fishname
+    else
+        if isRunning then
+            toggleautoquest()
+        end
+        print("Could not find ".. fishname)
+        titleLabel.Text = "Could not find " .. fishname
+        print()
+    end
+end
+
+local quests = game:GetService("Players").LocalPlayer.PlayerGui.hud.deviceinset.quests
+
+findfishreq = function()
+    for _, quest in ipairs(quests:GetChildren()) do
+        if quest:FindFirstChild("title") and quest:FindFirstChild("title").Text == "Angler Quest" then
+            return tostring(quest.line1.Text)
+        end
+    end
+    return nil
+end
+
+toggleautoquest = function()
+    if isRunning then
+        button3.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        
+        isRunning = false
+        taskCoroutine = nil
+    else
+        button3.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        
+        isRunning = true
+
+        if not taskCoroutine then
+            taskCoroutine = coroutine.create(function()
+                while task.wait(1) do
+                    local fish = findfishreq()
+                    if fish then
+                        equipfish(fish)
+                        givequest()
+                        task.wait(1)
+                    end
+                    givequest()
+                    if isRunning == false then coroutine.yield() end
+                end
+            end)
+        end
+
+        coroutine.resume(taskCoroutine)
+    end
+end
