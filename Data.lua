@@ -1,72 +1,79 @@
-while task.wait() do
-    local player = game.Players.LocalPlayer
-    repeat task.wait() until player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    local hrp = player.Character.HumanoidRootPart
+local player = game.Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
 
-    task.wait(5)
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+task.wait(1)
 
-    local function getAllBasaltCores()
-        local cores = {}
-        local rocks = workspace:FindFirstChild("Rocks")
+game:GetService("ReplicatedStorage"):WaitForChild("requests"):WaitForChild("character"):WaitForChild("spawn"):FireServer()
 
-        if not rocks then
-            warn("workspace.Rocks not found")
-            return cores
-        end
+task.wait(3)
 
-        for _, obj in ipairs(rocks:GetDescendants()) do
-            if obj.Name:lower():match("basalt core") and (obj:IsA("Model") or obj:IsA("BasePart")) then
-                table.insert(cores, obj)
-            end
-        end
-
-        return cores
+local function getArrowCFrame(arrow)
+    if arrow:IsA("Model") then
+        return arrow:GetPivot()
+    elseif arrow:IsA("BasePart") then
+        return arrow.CFrame
+    elseif arrow:IsA("Tool") and arrow:FindFirstChild("Handle") then
+        return arrow.Handle.CFrame
     end
+    return nil
+end
 
-    local function teleportTo(core)
-        local target = nil
-
-        if core:IsA("Model") then
-            target = core.PrimaryPart or core:FindFirstChildWhichIsA("BasePart", true)
-        elseif core:IsA("BasePart") then
-            target = core
-        end
-
-        if target then
-            hrp.CFrame = target.CFrame + Vector3.new(0, 5, 0)
+local function interactWithArrow(arrow)
+    local prompt = arrow:FindFirstChildWhichIsA("ProximityPrompt", true)
+    if prompt then
+        if fireproximityprompt then
+            fireproximityprompt(prompt, 1, true)
         else
-            warn("No valid part to teleport to for", core:GetFullName())
+            prompt:InputHoldBegin()
+            task.wait(5.2)
+            prompt:InputHoldEnd()
         end
     end
+end
 
-    local function isGone(core)
-        return not core or not core:IsDescendantOf(workspace)
+local arrows = {}
+for _, descendant in pairs(workspace:GetDescendants()) do
+    if descendant.Name == "Stand Arrow" then
+        table.insert(arrows, descendant)
     end
+end
 
-    local function run()
-        local cores = getAllBasaltCores()
-
-        if #cores == 0 then
-            warn("No Basalt Cores found")
-            return
-        end
-
-        print("Found", #cores, "Basalt Core(s)")
-
-        for i, core in ipairs(cores) do
-            print("Teleporting to core #" .. i)
-            teleportTo(core)
-
-            while not isGone(core) do
-                task.wait(0.5)
-            end
-
-            print("Core #" .. i .. " gone. Moving to next.")
+for _, arrow in ipairs(arrows) do
+    if arrow and arrow.Parent then
+        local targetCFrame = getArrowCFrame(arrow)
+        if targetCFrame then
+            local character = player.Character or player.CharacterAdded:Wait()
+            local rootPart = character:WaitForChild("HumanoidRootPart")
+            
+            rootPart.CFrame = targetCFrame
             task.wait(0.5)
+            interactWithArrow(arrow)
+            task.wait(1)
         end
-
-        print("All cores completed!")
     end
+end
 
-    run()
+local placeId = game.PlaceId
+local jobId = game.JobId
+local url = "https://games.roblox.com/v1/games/" .. tostring(placeId) .. "/servers/Public?sortOrder=Asc&limit=100"
+
+local success, result = pcall(function()
+    return game:HttpGet(url)
+end)
+
+if success and result then
+    local data = HttpService:JSONDecode(result)
+    if data and data.data then
+        for _, server in ipairs(data.data) do
+            if server.playing > 0 and server.id ~= jobId then
+                TeleportService:TeleportToPlaceInstance(placeId, server.id, player)
+                task.wait(5)
+                break
+            end
+        end
+    end
 end
