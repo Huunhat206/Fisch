@@ -120,7 +120,6 @@ local LuarmorApi = loadstring(game:HttpGet("https://sdkapi-public.luarmor.net/li
 LuarmorApi.script_id = ScriptId
 
 if IsKeyless then
-	pcall(function()
 		LuarmorApi.load_script()
 	end)
 	return
