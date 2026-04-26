@@ -403,3 +403,4 @@ task.spawn(function()
         task.wait(CFG.SellInterval)
     end
 end)
+
