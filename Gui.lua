@@ -23,10 +23,10 @@ local CFG = {
     CastDelay      = 0.15,  
     LockLine       = true,  
     QTEOpenDelay   = 0.4,   
+    HitChance      = 100,   -- Tỉ lệ đánh trúng (0-100)
     Debug          = false,
 }
 
--- ══════════ THÊM ĐẢO / TỌA ĐỘ TẠI ĐÂY ══════════
 local ISLANDS = {
     {Name = "Bay Island", Pos = Vector3.new(47, 27, 131)},
     {Name = "Caldera Cay", Pos = Vector3.new(1795, 26, -1334)},
@@ -34,13 +34,11 @@ local ISLANDS = {
     {Name = "Sea Stack", Pos = Vector3.new(-1337, 29, 1593)},
     {Name = "Cave Sea Stack", Pos = Vector3.new(1033, -52, 1397)},
 }
--- ═══════════════════════════════════════════════
 
 if CFG.SelectedIsland == "" and #ISLANDS > 0 then
     CFG.SelectedIsland = ISLANDS[1].Name
 end
 
--- ══════════ LOAD & SAVE CONFIG ══════════
 if isfile and readfile and isfile(CONFIG_FILE) then
     pcall(function()
         local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
@@ -58,29 +56,23 @@ local function saveConfig()
     end
 end
 
--- ══════════ RANDOM SAFE ZONE LOGIC ══════════
 local function getRandomSafeZone()
     local vp = camera.ViewportSize
-    local minX = math.floor(vp.X * 0.3)
-    local maxX = math.floor(vp.X * 0.7)
-    local minY = math.floor(vp.Y * 0.15)
-    local maxY = math.floor(vp.Y * 0.35)
+    local minX, maxX = math.floor(vp.X * 0.3), math.floor(vp.X * 0.7)
+    local minY, maxY = math.floor(vp.Y * 0.15), math.floor(vp.Y * 0.35)
     return Vector2.new(math.random(minX, maxX), math.random(minY, maxY))
 end
 
--- ══════════ ANTI-AFK ══════════
 player.Idled:Connect(function()
     VirtualUser:CaptureController()
     VirtualUser:ClickButton2(Vector2.new())
 end)
 
-local ByteNetQuery      = ReplicatedStorage:WaitForChild("ByteNetQuery", 10)
 local ByteNetUnreliable = ReplicatedStorage:WaitForChild("ByteNetUnreliable", 10)
 local ByteNetReliable   = ReplicatedStorage:WaitForChild("ByteNetReliable", 10)
 local SELL_BUF = buffer.fromstring("2")
-local LOCK_BUF = buffer.fromstring("\003\001\000") -- Buffer để Khóa đồ
+local LOCK_BUF = buffer.fromstring("\003\001\000")
 
--- ══════════ TELEPORT THREAD ══════════
 task.spawn(function()
     while true do
         task.wait(1)
@@ -100,21 +92,6 @@ task.spawn(function()
     end
 end)
 
--- ══════════ KILL ANIMATION ══════════
-local function killQTEAnimations()
-    pcall(function()
-        local char = player.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        local animator = hum and hum:FindFirstChildOfClass("Animator")
-        if animator then
-            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                track:Stop()
-            end
-        end
-    end)
-end
-
--- ══════════ CAST (RANDOM CLICK) ══════════
 local isCasting = false  
 local function tryOpenFishing()
     if isCasting then return end
@@ -133,7 +110,6 @@ local function tryOpenFishing()
     isCasting = false
 end
 
--- ══════════ LOCK LINE GLOBAL ══════════
 local lineHooked = false
 local lockedBar  = nil  
 local currentLineObj = nil
@@ -144,10 +120,8 @@ local function hookLineRotation()
     local ok, mt = pcall(getrawmetatable, dummy)
     dummy:Destroy()
     if not ok or not mt then return end
-
     pcall(setreadonly, mt, false)
     local origNewindex = rawget(mt, "__newindex")
-
     mt.__newindex = newcclosure(function(self, key, value)
         if CFG.LockLine and key == "Rotation" and currentLineObj and self == currentLineObj then
             if lockedBar then
@@ -157,13 +131,11 @@ local function hookLineRotation()
         end
         if origNewindex then return origNewindex(self, key, value) else rawset(self, key, value) end
     end)
-
     pcall(setreadonly, mt, true)
     lineHooked = true
 end
 task.spawn(hookLineRotation)
 
--- ══════════ FIRE HIT ══════════
 local qteClickFunc  = nil
 local lastHitBuffer = nil
 
@@ -215,7 +187,6 @@ if hookfunction and ByteNetUnreliable then
     end))
 end
 
--- ══════════ ANGLE ══════════
 local function normAngle(a) return a % 360 end
 local function angleDiff(a, b)
     local d = math.abs(normAngle(a) - normAngle(b))
@@ -233,18 +204,17 @@ local function initRefs()
     return LineObj ~= nil and BarsFolder ~= nil
 end
 
--- ══════════ MAIN LOOP ══════════
 local lastIdleOpen  = 0
 local lastHitFire   = 0
 local wasQTEActive  = false  
 local justClosed    = false  
 local qteOpenedTime = 0     
+local isSessionLucky = true -- Biến quyết định lượt QTE này hên hay xui
 
 RunService.Heartbeat:Connect(function()
     if not CFG.Enabled then return end
     local now = tick()
     
-    -- ── AUTO EQUIP CHỈ LẤY CẦN CÂU ──
     pcall(function()
         local char = player.Character
         if char and not char:FindFirstChildOfClass("Tool") then
@@ -255,10 +225,8 @@ RunService.Heartbeat:Connect(function()
                 for _, tool in ipairs(bp:GetChildren()) do
                     if tool:IsA("Tool") then
                         local n = string.lower(tool.Name)
-                        -- Lọc bỏ các tool rác
                         if not n:match("equipment") and not n:match("archive") then
-                            targetTool = tool
-                            break
+                            targetTool = tool; break
                         end
                     end
                 end
@@ -266,7 +234,6 @@ RunService.Heartbeat:Connect(function()
             end
         end
     end)
-    -- ────────────────────────────────
 
     local qteActive = false
     local qteGui = PlayerGui:FindFirstChild("QTE")
@@ -275,11 +242,11 @@ RunService.Heartbeat:Connect(function()
         if main and main.Visible then qteActive = true end
     end
 
-    if qteActive then
-        killQTEAnimations()
+    if not wasQTEActive and qteActive then 
+        qteOpenedTime = now 
+        -- Random xem lượt QTE này có bấm trúng không (Dựa trên % Legitness)
+        isSessionLucky = (math.random(1, 100) <= CFG.HitChance)
     end
-
-    if not wasQTEActive and qteActive then qteOpenedTime = now end
 
     if wasQTEActive and not qteActive then
         lockedBar  = nil
@@ -299,11 +266,10 @@ RunService.Heartbeat:Connect(function()
 
     if not qteActive then return end
     if not LineObj or not LineObj.Parent or not BarsFolder or not BarsFolder.Parent then initRefs() end
-    
     currentLineObj = LineObj
     if not LineObj or not BarsFolder then return end
 
-    if CFG.LockLine then
+    if CFG.LockLine and isSessionLucky then
         local targetBar = nil
         for _, bar in ipairs(BarsFolder:GetChildren()) do
             if (bar:IsA("ImageLabel") or bar:IsA("Frame")) then
@@ -314,6 +280,8 @@ RunService.Heartbeat:Connect(function()
         lockedBar = targetBar
         if lockedBar then pcall(function() LineObj.Rotation = lockedBar.Rotation end) end
     end
+
+    if not isSessionLucky then return end -- Nếu lượt này xui thì không làm gì tiếp theo (Miss sạch)
 
     local lineRot = 0
     if not pcall(function() lineRot = LineObj.Rotation end) then return end
@@ -331,7 +299,6 @@ RunService.Heartbeat:Connect(function()
                 local arcDeg = 15
                 local n = bar.Name:match("_(%d+)$")
                 if n then arcDeg = tonumber(n) or 15 end
-
                 if angleDiff(lineRot, normAngle(barRot)) <= arcDeg / 2 then
                     if now - qteOpenedTime >= CFG.QTEOpenDelay then
                         if now - lastHitFire >= 0.05 then
@@ -345,41 +312,35 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ══════════ GUI ══════════
 pcall(function() if PlayerGui:FindFirstChild("_MacroGUI") then PlayerGui:FindFirstChild("_MacroGUI"):Destroy() end end)
-
 local sg = Instance.new("ScreenGui"); sg.Name = "_MacroGUI"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.Parent = PlayerGui
-local panel = Instance.new("Frame"); panel.Size = UDim2.new(0, 200, 0, 275); panel.Position = UDim2.new(0, 12, 0.5, -137); panel.BackgroundColor3 = Color3.fromRGB(14,14,18); panel.BorderSizePixel = 0; panel.Parent = sg; Instance.new("UICorner", panel).CornerRadius = UDim.new(0,10)
+local panel = Instance.new("Frame"); panel.Size = UDim2.new(0, 200, 0, 310); panel.Position = UDim2.new(0, 12, 0.5, -155); panel.BackgroundColor3 = Color3.fromRGB(14,14,18); panel.BorderSizePixel = 0; panel.Parent = sg; Instance.new("UICorner", panel).CornerRadius = UDim.new(0,10)
 local topBar = Instance.new("Frame"); topBar.Size = UDim2.new(1,0,0,26); topBar.BackgroundColor3 = Color3.fromRGB(26,26,34); topBar.BorderSizePixel = 0; topBar.Parent = panel; Instance.new("UICorner", topBar).CornerRadius = UDim.new(0,10)
-local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish + Lock SunShard v7.0"
+local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fisch Legitness v7.1"
 titleLbl.Font = Enum.Font.GothamBold; titleLbl.TextSize = 11; titleLbl.TextColor3 = Color3.fromRGB(200,200,225); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.Parent = topBar
 
 local toggleBtn = Instance.new("TextButton"); toggleBtn.Size = UDim2.new(1,-16,0,30); toggleBtn.Position = UDim2.new(0,8,0,30); toggleBtn.BackgroundColor3 = Color3.fromRGB(35,175,95); toggleBtn.BorderSizePixel = 0; toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 12; toggleBtn.TextColor3 = Color3.new(1,1,1); toggleBtn.Text = "AUTO FISH: ON"; toggleBtn.Parent = panel; Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0,7)
 local sellBtn = Instance.new("TextButton"); sellBtn.Size = UDim2.new(1,-16,0,30); sellBtn.Position = UDim2.new(0,8,0,64); sellBtn.BackgroundColor3 = Color3.fromRGB(175,45,45); sellBtn.BorderSizePixel = 0; sellBtn.Font = Enum.Font.GothamBold; sellBtn.TextSize = 12; sellBtn.TextColor3 = Color3.new(1,1,1); sellBtn.Text = "AUTO SELL: OFF"; sellBtn.Parent = panel; Instance.new("UICorner", sellBtn).CornerRadius = UDim.new(0,7)
 local teleBtn = Instance.new("TextButton"); teleBtn.Size = UDim2.new(1,-16,0,30); teleBtn.Position = UDim2.new(0,8,0,98); teleBtn.BackgroundColor3 = Color3.fromRGB(175,45,45); teleBtn.BorderSizePixel = 0; teleBtn.Font = Enum.Font.GothamBold; teleBtn.TextSize = 12; teleBtn.TextColor3 = Color3.new(1,1,1); teleBtn.Text = "AUTO TELEPORT: OFF"; teleBtn.Parent = panel; Instance.new("UICorner", teleBtn).CornerRadius = UDim.new(0,7)
 
--- Dropdown
 local dropBtn = Instance.new("TextButton"); dropBtn.Size = UDim2.new(1,-16,0,24); dropBtn.Position = UDim2.new(0,8,0,132); dropBtn.BackgroundColor3 = Color3.fromRGB(40,40,55); dropBtn.BorderSizePixel = 0; dropBtn.Font = Enum.Font.GothamBold; dropBtn.TextSize = 11; dropBtn.TextColor3 = Color3.new(1,1,1); dropBtn.Text = "📍 " .. (CFG.SelectedIsland ~= "" and CFG.SelectedIsland or "Chọn Đảo..."); dropBtn.Parent = panel; Instance.new("UICorner", dropBtn).CornerRadius = UDim.new(0,6)
 local dropScroll = Instance.new("ScrollingFrame"); dropScroll.Size = UDim2.new(1,-16,0,100); dropScroll.Position = UDim2.new(0,8,0,158); dropScroll.BackgroundColor3 = Color3.fromRGB(30,30,40); dropScroll.BorderSizePixel = 0; dropScroll.Visible = false; dropScroll.ZIndex = 10; dropScroll.ScrollBarThickness = 4; dropScroll.Parent = panel; Instance.new("UICorner", dropScroll).CornerRadius = UDim.new(0,6)
 local dropLayout = Instance.new("UIListLayout"); dropLayout.Parent = dropScroll; dropLayout.Padding = UDim.new(0,2)
 
 for _, isl in ipairs(ISLANDS) do
     local b = Instance.new("TextButton"); b.Size = UDim2.new(1,0,0,24); b.BackgroundColor3 = Color3.fromRGB(50,50,70); b.BorderSizePixel = 0; b.Font = Enum.Font.Gotham; b.TextSize = 11; b.TextColor3 = Color3.new(1,1,1); b.Text = isl.Name; b.ZIndex = 11; b.Parent = dropScroll
-    b.MouseButton1Click:Connect(function()
-        CFG.SelectedIsland = isl.Name; dropBtn.Text = "📍 " .. isl.Name; dropScroll.Visible = false
-        saveConfig()
-    end)
+    b.MouseButton1Click:Connect(function() CFG.SelectedIsland = isl.Name; dropBtn.Text = "📍 " .. isl.Name; dropScroll.Visible = false; saveConfig() end)
 end
 dropScroll.CanvasSize = UDim2.new(0,0,0, #ISLANDS * 26)
 dropBtn.MouseButton1Click:Connect(function() dropScroll.Visible = not dropScroll.Visible end)
 
-local bufLbl = Instance.new("TextLabel"); bufLbl.Size = UDim2.new(1,-16,0,13); bufLbl.Position = UDim2.new(0,8,0,162); bufLbl.BackgroundTransparency = 1; bufLbl.Font = Enum.Font.Gotham; bufLbl.TextSize = 10; bufLbl.TextColor3 = Color3.fromRGB(200,140,50); bufLbl.Text = "Click 1 lần để capture buffer"; bufLbl.TextXAlignment = Enum.TextXAlignment.Left; bufLbl.Parent = panel
-local statusLbl = Instance.new("TextLabel"); statusLbl.Size = UDim2.new(1,-16,0,13); statusLbl.Position = UDim2.new(0,8,0,177); statusLbl.BackgroundTransparency = 1; statusLbl.Font = Enum.Font.Gotham; statusLbl.TextSize = 10; statusLbl.TextColor3 = Color3.fromRGB(100,100,130); statusLbl.Text = "○ Đợi câu..."; statusLbl.TextXAlignment = Enum.TextXAlignment.Left; statusLbl.Parent = panel
-local castLbl = Instance.new("TextLabel"); castLbl.Size = UDim2.new(1,-16,0,13); castLbl.Position = UDim2.new(0,8,0,192); castLbl.BackgroundTransparency = 1; castLbl.Font = Enum.Font.Gotham; castLbl.TextSize = 10; castLbl.TextColor3 = Color3.fromRGB(100,180,255); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay); castLbl.TextXAlignment = Enum.TextXAlignment.Left; castLbl.Parent = panel
-local lockBtn = Instance.new("TextButton"); lockBtn.Size = UDim2.new(1,-16,0,22); lockBtn.Position = UDim2.new(0,8,0,211); lockBtn.BackgroundColor3 = Color3.fromRGB(40,100,175); lockBtn.BorderSizePixel = 0; lockBtn.Font = Enum.Font.GothamBold; lockBtn.TextSize = 11; lockBtn.TextColor3 = Color3.new(1,1,1); lockBtn.Text = "🔒 Lock Line: ON"; lockBtn.Parent = panel; Instance.new("UICorner", lockBtn).CornerRadius = UDim.new(0,6)
-local btnRow = Instance.new("Frame"); btnRow.Size = UDim2.new(1,-16,0,24); btnRow.Position = UDim2.new(0,8,0,240); btnRow.BackgroundTransparency = 1; btnRow.Parent = panel
-local function makeBtn(text, xoff) local b = Instance.new("TextButton"); b.Size = UDim2.new(0,88,1,0); b.Position = UDim2.new(0,xoff,0,0); b.BackgroundColor3 = Color3.fromRGB(50,50,70); b.BorderSizePixel = 0; b.Font = Enum.Font.GothamBold; b.TextSize = 12; b.TextColor3 = Color3.new(1,1,1); b.Text = text; b.Parent = btnRow; Instance.new("UICorner", b).CornerRadius = UDim.new(0,6); return b end
-local bcM = makeBtn("- Cast", 0); local bcP = makeBtn("+ Cast", 96)
+local chanceLbl = Instance.new("TextLabel"); chanceLbl.Size = UDim2.new(1,-16,0,13); chanceLbl.Position = UDim2.new(0,8,0,165); chanceLbl.BackgroundTransparency = 1; chanceLbl.Font = Enum.Font.Gotham; chanceLbl.TextSize = 10; chanceLbl.TextColor3 = Color3.fromRGB(255,100,100); chanceLbl.Text = string.format("Hit Chance: %d%%", CFG.HitChance); chanceLbl.TextXAlignment = Enum.TextXAlignment.Left; chanceLbl.Parent = panel
+local chanceRow = Instance.new("Frame"); chanceRow.Size = UDim2.new(1,-16,0,24); chanceRow.Position = UDim2.new(0,8,0,180); chanceRow.BackgroundTransparency = 1; chanceRow.Parent = panel
+local function makeBtn(text, x, w, p) local b = Instance.new("TextButton"); b.Size = UDim2.new(0,w,1,0); b.Position = UDim2.new(0,x,0,0); b.BackgroundColor3 = Color3.fromRGB(50,50,70); b.BorderSizePixel = 0; b.Font = Enum.Font.GothamBold; b.TextSize = 11; b.TextColor3 = Color3.new(1,1,1); b.Text = text; b.Parent = p; Instance.new("UICorner", b).CornerRadius = UDim.new(0,6); return b end
+local cM = makeBtn("- 10%", 0, 88, chanceRow); local cP = makeBtn("+ 10%", 96, 88, chanceRow)
+
+local statusLbl = Instance.new("TextLabel"); statusLbl.Size = UDim2.new(1,-16,0,13); statusLbl.Position = UDim2.new(0,8,0,210); statusLbl.BackgroundTransparency = 1; statusLbl.Font = Enum.Font.Gotham; statusLbl.TextSize = 10; statusLbl.TextColor3 = Color3.fromRGB(100,100,130); statusLbl.Text = "○ Đợi câu..."; statusLbl.TextXAlignment = Enum.TextXAlignment.Left; statusLbl.Parent = panel
+local lockBtn = Instance.new("TextButton"); lockBtn.Size = UDim2.new(1,-16,0,22); lockBtn.Position = UDim2.new(0,8,0,230); lockBtn.BackgroundColor3 = Color3.fromRGB(40,100,175); lockBtn.BorderSizePixel = 0; lockBtn.Font = Enum.Font.GothamBold; lockBtn.TextSize = 11; lockBtn.TextColor3 = Color3.new(1,1,1); lockBtn.Text = "🔒 Lock Line: ON"; lockBtn.Parent = panel; Instance.new("UICorner", lockBtn).CornerRadius = UDim.new(0,6)
 
 local function updateGUI()
     toggleBtn.BackgroundColor3 = CFG.Enabled and Color3.fromRGB(35,175,95) or Color3.fromRGB(175,45,45)
@@ -390,25 +351,22 @@ local function updateGUI()
     teleBtn.Text = CFG.AutoTeleport and "AUTO TELEPORT: ON" or "AUTO TELEPORT: OFF"
     lockBtn.BackgroundColor3 = CFG.LockLine and Color3.fromRGB(40,100,175) or Color3.fromRGB(60,60,80)
     lockBtn.Text = CFG.LockLine and "🔒 Lock Line: ON" or "🔒 Lock Line: OFF"
-    castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay)
-    if CFG.SelectedIsland ~= "" then dropBtn.Text = "📍 " .. CFG.SelectedIsland end
+    chanceLbl.Text = string.format("Hit Chance: %d%%", CFG.HitChance)
 end
 updateGUI()
 
-bcM.MouseButton1Click:Connect(function() CFG.CastDelay = math.max(0, CFG.CastDelay - 0.05); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay); saveConfig() end)
-bcP.MouseButton1Click:Connect(function() CFG.CastDelay = math.min(2, CFG.CastDelay + 0.05); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay); saveConfig() end)
-
+cM.MouseButton1Click:Connect(function() CFG.HitChance = math.max(0, CFG.HitChance - 10); updateGUI(); saveConfig() end)
+cP.MouseButton1Click:Connect(function() CFG.HitChance = math.min(100, CFG.HitChance + 10); updateGUI(); saveConfig() end)
 lockBtn.MouseButton1Click:Connect(function() CFG.LockLine = not CFG.LockLine; updateGUI(); saveConfig() end)
 toggleBtn.MouseButton1Click:Connect(function() CFG.Enabled = not CFG.Enabled; updateGUI(); saveConfig() end)
 sellBtn.MouseButton1Click:Connect(function() CFG.AutoSell = not CFG.AutoSell; updateGUI(); saveConfig() end)
 teleBtn.MouseButton1Click:Connect(function() CFG.AutoTeleport = not CFG.AutoTeleport; updateGUI(); saveConfig() end)
 
 RunService.Heartbeat:Connect(function()
-    if lastHitBuffer then bufLbl.Text = "✓ Buffer captured!"; bufLbl.TextColor3 = Color3.fromRGB(80,200,120) end
     local qte = PlayerGui:FindFirstChild("QTE")
     local main = qte and qte:FindFirstChild("Main")
     if main then
-        local active = false; pcall(function() active = main.Visible end)
+        local active = main.Visible
         if active then statusLbl.Text = "● QTE đang chạy"; statusLbl.TextColor3 = Color3.fromRGB(80,200,120)
         elseif justClosed then statusLbl.Text = "⚡ Casting..."; statusLbl.TextColor3 = Color3.fromRGB(255,200,50)
         else statusLbl.Text = "○ Đợi câu..."; statusLbl.TextColor3 = Color3.fromRGB(100,100,130) end
@@ -420,57 +378,26 @@ topBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.M
 topBar.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag=false end end)
 UserInputService.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - dStart; panel.Position = UDim2.new(dPos.X.Scale, dPos.X.Offset+d.X, dPos.Y.Scale, dPos.Y.Offset+d.Y) end end)
 
--- ══════════ AUTO SELL & AUTO LOCK ══════════
-local lockedItemsCache = setmetatable({}, {__mode = "k"}) -- Tránh rò rỉ bộ nhớ (memory leak)
-
+local lockedItemsCache = setmetatable({}, {__mode = "k"})
 task.spawn(function()
     while true do
         if CFG.AutoSell and ByteNetReliable then
             local backpack = player:FindFirstChild("Backpack")
             if backpack then
                 local items = backpack:GetChildren()
-                local sellableCount = 0
-                local toolsToLock = {}
-                
+                local sellableCount, toolsToLock = 0, {}
                 for _, item in ipairs(items) do
                     if item:IsA("Tool") then
                         local n = string.lower(item.Name)
-                        local cleanName = string.gsub(n, "%s+", "")
-                        
-                        -- Lọc bỏ các tool cố định của game
                         if not n:match("equipment") and not n:match("archive") then
-                            -- Nếu là Sun Shard
-                            if string.match(cleanName, "sunshard") then
-                                -- Khóa những cục chưa được gửi lệnh khóa
-                                if not lockedItemsCache[item] then
-                                    table.insert(toolsToLock, item)
-                                    lockedItemsCache[item] = true
-                                end
-                            else
-                                -- Nếu là cá rác (không phải equipment/archive/sunshard) -> Đếm để bán
-                                sellableCount = sellableCount + 1
-                            end
+                            if string.match(string.gsub(n, "%s+", ""), "sunshard") then
+                                if not lockedItemsCache[item] then table.insert(toolsToLock, item); lockedItemsCache[item] = true end
+                            else sellableCount = sellableCount + 1 end
                         end
                     end
                 end
-                
-                -- Bắn lệnh Khóa (Lock) lên Server nếu có Sun Shard mới
-                if #toolsToLock > 0 then
-                    pcall(function()
-                        local args = { LOCK_BUF, toolsToLock }
-                        ByteNetReliable:FireServer(unpack(args))
-                        print("🔒 [Auto Lock] Đã tự động khóa " .. #toolsToLock .. " Sun Shard mới!")
-                    end)
-                    task.wait(0.5) -- Nghỉ nửa nhịp cho server cập nhật trạng thái khóa xong mới bán rác
-                end
-                
-                -- Nếu rác dồn đủ 30 món -> Bắn lệnh Bán
-                if sellableCount >= 30 then
-                    pcall(function() 
-                        ByteNetReliable:FireServer(SELL_BUF)
-                        print("💰 [Auto Sell] Đã thanh lý " .. sellableCount .. " rác!")
-                    end)
-                end
+                if #toolsToLock > 0 then pcall(function() ByteNetReliable:FireServer(LOCK_BUF, toolsToLock) end) end
+                if sellableCount >= 30 then pcall(function() ByteNetReliable:FireServer(SELL_BUF) end) end
             end
         end
         task.wait(CFG.SellInterval)
