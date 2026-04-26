@@ -34,7 +34,7 @@ local ByteNetReliable   = ReplicatedStorage:WaitForChild("ByteNetReliable", 10)
 
 local SELL_BUF = buffer.fromstring("2")
 
--- ══════════ CAST ══════════
+-- ══════════ CAST (FIX TỌA ĐỘ VÙNG AN TOÀN) ══════════
 local isCasting = false  
 
 local function tryOpenFishing()
@@ -44,16 +44,21 @@ local function tryOpenFishing()
         local char = player.Character
         local tool = char and char:FindFirstChildOfClass("Tool")
         if tool then tool:Activate() end
+        
+        -- Dời điểm click ra giữa màn hình, nhích lên trên 1/3 (Né thanh đồ đạc bên dưới/cạnh bên)
+        local safeX = camera.ViewportSize.X / 2
+        local safeY = camera.ViewportSize.Y / 3
+        
         VirtualUser:CaptureController()
-        VirtualUser:Button1Down(Vector2.new(0,0), camera.CFrame)
+        VirtualUser:Button1Down(Vector2.new(safeX, safeY), camera.CFrame)
         task.wait(0.1)
-        VirtualUser:Button1Up(Vector2.new(0,0), camera.CFrame)
+        VirtualUser:Button1Up(Vector2.new(safeX, safeY), camera.CFrame)
     end)
     task.wait(0.2)  
     isCasting = false
 end
 
--- ══════════ LOCK LINE GLOBAL (FIX ĐƠ GAME) ══════════
+-- ══════════ LOCK LINE GLOBAL ══════════
 local lineHooked = false
 local lockedBar  = nil  
 local currentLineObj = nil
@@ -61,7 +66,6 @@ local currentLineObj = nil
 local function hookLineRotation()
     if lineHooked then return end
     
-    -- Lấy metatable gốc một cách an toàn
     local dummy = Instance.new("Folder")
     local ok, mt = pcall(getrawmetatable, dummy)
     dummy:Destroy()
@@ -72,7 +76,6 @@ local function hookLineRotation()
     local origNewindex = rawget(mt, "__newindex")
 
     mt.__newindex = newcclosure(function(self, key, value)
-        -- Kiểm tra cực kỳ chặt chẽ, không để rò rỉ bộ nhớ
         if CFG.LockLine and key == "Rotation" and currentLineObj and self == currentLineObj then
             if lockedBar then
                 local ok2, barRot = pcall(function() return lockedBar.Rotation end)
@@ -88,10 +91,9 @@ local function hookLineRotation()
 
     pcall(setreadonly, mt, true)
     lineHooked = true
-    print("🔒 [Lock Line] Đã can thiệp thành công vào MetaTable 1 lần duy nhất!")
+    print("🔒 [Lock Line] Đã can thiệp MetaTable thành công!")
 end
 
--- Kích hoạt Hook ngay từ đầu, không bao giờ reset
 task.spawn(hookLineRotation)
 
 -- ══════════ FIRE HIT ══════════
@@ -122,9 +124,15 @@ local function fireQTEHit()
         end)
         if fired then return end
     end
+    
+    -- Nếu vẫn phải dùng VIM, cũng dùng vùng an toàn để tránh bấm nhầm UI
+    local safeX = camera.ViewportSize.X / 2
+    local safeY = camera.ViewportSize.Y / 3
+    
     local center = qteClickFunc
         and (qteClickFunc.AbsolutePosition + qteClickFunc.AbsoluteSize / 2)
-        or  Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y/2)
+        or  Vector2.new(safeX, safeY)
+        
     pcall(function()
         VIM:SendMouseButtonEvent(center.X, center.Y, 0, true,  game, 0)
         task.wait(0.02)
@@ -217,7 +225,6 @@ RunService.Heartbeat:Connect(function()
         initRefs()
     end
     
-    -- Cập nhật LineObj để MetaTable có thể nhận diện
     currentLineObj = LineObj
     if not LineObj or not BarsFolder then return end
 
@@ -257,7 +264,7 @@ RunService.Heartbeat:Connect(function()
                 if angleDiff(lineRot, normAngle(barRot)) <= arcDeg / 2 then
                     if now - qteOpenedTime >= CFG.QTEOpenDelay then
                         if now - lastHitFire >= 0.05 then
-                            lastHitFire = now -- CHẶN LẠI NGAY LẬP TỨC ĐỂ KHÔNG BỊ TRÀN LUỒNG
+                            lastHitFire = now 
                             task.spawn(fireQTEHit)
                         end
                     end
@@ -273,7 +280,7 @@ pcall(function() if PlayerGui:FindFirstChild("_MacroGUI") then PlayerGui:FindFir
 local sg = Instance.new("ScreenGui"); sg.Name = "_MacroGUI"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.Parent = PlayerGui
 local panel = Instance.new("Frame"); panel.Size = UDim2.new(0, 200, 0, 215); panel.Position = UDim2.new(0, 12, 0.5, -97); panel.BackgroundColor3 = Color3.fromRGB(14,14,18); panel.BorderSizePixel = 0; panel.Parent = sg; Instance.new("UICorner", panel).CornerRadius = UDim.new(0,10)
 local topBar = Instance.new("Frame"); topBar.Size = UDim2.new(1,0,0,26); topBar.BackgroundColor3 = Color3.fromRGB(26,26,34); topBar.BorderSizePixel = 0; topBar.Parent = panel; Instance.new("UICorner", topBar).CornerRadius = UDim.new(0,10)
-local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish Lock Line v5.3"
+local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish Lock Line v5.4"
 titleLbl.Font = Enum.Font.GothamBold; titleLbl.TextSize = 11; titleLbl.TextColor3 = Color3.fromRGB(200,200,225); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.Parent = topBar
 local toggleBtn = Instance.new("TextButton"); toggleBtn.Size = UDim2.new(1,-16,0,32); toggleBtn.Position = UDim2.new(0,8,0,30); toggleBtn.BackgroundColor3 = Color3.fromRGB(35,175,95); toggleBtn.BorderSizePixel = 0
 toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 13; toggleBtn.TextColor3 = Color3.new(1,1,1); toggleBtn.Text = "AUTO FISH: ON"; toggleBtn.Parent = panel; Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0,7)
@@ -336,7 +343,6 @@ task.spawn(function()
                 if foundSunshard then
                     setSelling(false)
                     pcall(function() sellBtn.Text = "OFF (CÓ SUNSHARD)" end)
-                    print("⚠️ PHÁT HIỆN SUN SHARD! Đã tự động tắt Auto Sell.")
                 elseif itemCount >= 10 then
                     pcall(function() ByteNetReliable:FireServer(SELL_BUF) end)
                 end
@@ -346,4 +352,4 @@ task.spawn(function()
     end
 end)
 
-print("[Fish & Sell v5.3] Đã vá lỗi tràn bộ nhớ gây đơ game!")
+print("[Fish & Sell v5.4] Cập nhật Safe Zone cho màn hình điện thoại!")
