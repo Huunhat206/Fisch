@@ -21,6 +21,20 @@ local CFG = {
     Debug          = false,
 }
 
+-- ══════════ RANDOM SAFE ZONE LOGIC ══════════
+-- Random một điểm bất kỳ trong khu vực an toàn (Bầu trời/Mặt biển phía trên nhân vật)
+local function getRandomSafeZone()
+    local vp = camera.ViewportSize
+    -- Trục X: Từ 30% đến 70% chiều ngang màn hình
+    local minX = math.floor(vp.X * 0.3)
+    local maxX = math.floor(vp.X * 0.7)
+    -- Trục Y: Từ 15% đến 35% chiều dọc (Né thanh menu Roblox trên cùng và UI dưới đáy)
+    local minY = math.floor(vp.Y * 0.15)
+    local maxY = math.floor(vp.Y * 0.35)
+    
+    return Vector2.new(math.random(minX, maxX), math.random(minY, maxY))
+end
+
 -- ══════════ ANTI-AFK ══════════
 player.Idled:Connect(function()
     VirtualUser:CaptureController()
@@ -34,7 +48,7 @@ local ByteNetReliable   = ReplicatedStorage:WaitForChild("ByteNetReliable", 10)
 
 local SELL_BUF = buffer.fromstring("2")
 
--- ══════════ CAST (FIX TỌA ĐỘ VÙNG AN TOÀN) ══════════
+-- ══════════ CAST (RANDOM CLICK) ══════════
 local isCasting = false  
 
 local function tryOpenFishing()
@@ -45,14 +59,13 @@ local function tryOpenFishing()
         local tool = char and char:FindFirstChildOfClass("Tool")
         if tool then tool:Activate() end
         
-        -- Dời điểm click ra giữa màn hình, nhích lên trên 1/3 (Né thanh đồ đạc bên dưới/cạnh bên)
-        local safeX = camera.ViewportSize.X / 2
-        local safeY = camera.ViewportSize.Y / 3
+        -- Lấy tọa độ ngẫu nhiên
+        local safePos = getRandomSafeZone()
         
         VirtualUser:CaptureController()
-        VirtualUser:Button1Down(Vector2.new(safeX, safeY), camera.CFrame)
+        VirtualUser:Button1Down(safePos, camera.CFrame)
         task.wait(0.1)
-        VirtualUser:Button1Up(Vector2.new(safeX, safeY), camera.CFrame)
+        VirtualUser:Button1Up(safePos, camera.CFrame)
     end)
     task.wait(0.2)  
     isCasting = false
@@ -125,13 +138,11 @@ local function fireQTEHit()
         if fired then return end
     end
     
-    -- Nếu vẫn phải dùng VIM, cũng dùng vùng an toàn để tránh bấm nhầm UI
-    local safeX = camera.ViewportSize.X / 2
-    local safeY = camera.ViewportSize.Y / 3
-    
+    -- VIM Backup cũng dùng điểm mù ngẫu nhiên
+    local safePos = getRandomSafeZone()
     local center = qteClickFunc
         and (qteClickFunc.AbsolutePosition + qteClickFunc.AbsoluteSize / 2)
-        or  Vector2.new(safeX, safeY)
+        or  safePos
         
     pcall(function()
         VIM:SendMouseButtonEvent(center.X, center.Y, 0, true,  game, 0)
@@ -280,7 +291,7 @@ pcall(function() if PlayerGui:FindFirstChild("_MacroGUI") then PlayerGui:FindFir
 local sg = Instance.new("ScreenGui"); sg.Name = "_MacroGUI"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.Parent = PlayerGui
 local panel = Instance.new("Frame"); panel.Size = UDim2.new(0, 200, 0, 215); panel.Position = UDim2.new(0, 12, 0.5, -97); panel.BackgroundColor3 = Color3.fromRGB(14,14,18); panel.BorderSizePixel = 0; panel.Parent = sg; Instance.new("UICorner", panel).CornerRadius = UDim.new(0,10)
 local topBar = Instance.new("Frame"); topBar.Size = UDim2.new(1,0,0,26); topBar.BackgroundColor3 = Color3.fromRGB(26,26,34); topBar.BorderSizePixel = 0; topBar.Parent = panel; Instance.new("UICorner", topBar).CornerRadius = UDim.new(0,10)
-local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish Lock Line v5.4"
+local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish Lock Line v5.6"
 titleLbl.Font = Enum.Font.GothamBold; titleLbl.TextSize = 11; titleLbl.TextColor3 = Color3.fromRGB(200,200,225); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.Parent = topBar
 local toggleBtn = Instance.new("TextButton"); toggleBtn.Size = UDim2.new(1,-16,0,32); toggleBtn.Position = UDim2.new(0,8,0,30); toggleBtn.BackgroundColor3 = Color3.fromRGB(35,175,95); toggleBtn.BorderSizePixel = 0
 toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 13; toggleBtn.TextColor3 = Color3.new(1,1,1); toggleBtn.Text = "AUTO FISH: ON"; toggleBtn.Parent = panel; Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0,7)
@@ -343,6 +354,7 @@ task.spawn(function()
                 if foundSunshard then
                     setSelling(false)
                     pcall(function() sellBtn.Text = "OFF (CÓ SUNSHARD)" end)
+                    print("⚠️ PHÁT HIỆN SUN SHARD! Đã tự động tắt Auto Sell.")
                 elseif itemCount >= 10 then
                     pcall(function() ByteNetReliable:FireServer(SELL_BUF) end)
                 end
@@ -352,4 +364,4 @@ task.spawn(function()
     end
 end)
 
-print("[Fish & Sell v5.4] Cập nhật Safe Zone cho màn hình điện thoại!")
+print("[Fish & Sell v5.6] Random Area Click Active!")
