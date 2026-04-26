@@ -33,8 +33,6 @@ local ISLANDS = {
     {Name = "Cresent Shore", Pos = Vector3.new(-1337, 29, 1593)},
     {Name = "Sea Stack", Pos = Vector3.new(-1337, 29, 1593)},
     {Name = "Cave Sea Stack", Pos = Vector3.new(1033, -52, 1397)},
-    -- Copy dòng dưới và thay tên + tọa độ để thêm đảo mới:
-    -- {Name = "Tên Đảo Mới", Pos = Vector3.new(X, Y, Z)},
 }
 -- ═══════════════════════════════════════════════
 
@@ -80,6 +78,7 @@ local ByteNetQuery      = ReplicatedStorage:WaitForChild("ByteNetQuery", 10)
 local ByteNetUnreliable = ReplicatedStorage:WaitForChild("ByteNetUnreliable", 10)
 local ByteNetReliable   = ReplicatedStorage:WaitForChild("ByteNetReliable", 10)
 local SELL_BUF = buffer.fromstring("2")
+local LOCK_BUF = buffer.fromstring("\003\001\000") -- Buffer để Khóa đồ
 
 -- ══════════ TELEPORT THREAD ══════════
 task.spawn(function()
@@ -100,6 +99,20 @@ task.spawn(function()
         end
     end
 end)
+
+-- ══════════ KILL ANIMATION ══════════
+local function killQTEAnimations()
+    pcall(function()
+        local char = player.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local animator = hum and hum:FindFirstChildOfClass("Animator")
+        if animator then
+            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                track:Stop()
+            end
+        end
+    end)
+end
 
 -- ══════════ CAST (RANDOM CLICK) ══════════
 local isCasting = false  
@@ -230,11 +243,40 @@ local qteOpenedTime = 0
 RunService.Heartbeat:Connect(function()
     if not CFG.Enabled then return end
     local now = tick()
+    
+    -- ── AUTO EQUIP CHỈ LẤY CẦN CÂU ──
+    pcall(function()
+        local char = player.Character
+        if char and not char:FindFirstChildOfClass("Tool") then
+            local bp = player:FindFirstChild("Backpack")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if bp and hum then
+                local targetTool = nil
+                for _, tool in ipairs(bp:GetChildren()) do
+                    if tool:IsA("Tool") then
+                        local n = string.lower(tool.Name)
+                        -- Lọc bỏ các tool rác
+                        if not n:match("equipment") and not n:match("archive") then
+                            targetTool = tool
+                            break
+                        end
+                    end
+                end
+                if targetTool then hum:EquipTool(targetTool) end
+            end
+        end
+    end)
+    -- ────────────────────────────────
+
     local qteActive = false
     local qteGui = PlayerGui:FindFirstChild("QTE")
     if qteGui and qteGui.Enabled then
         local main = qteGui:FindFirstChild("Main")
         if main and main.Visible then qteActive = true end
+    end
+
+    if qteActive then
+        killQTEAnimations()
     end
 
     if not wasQTEActive and qteActive then qteOpenedTime = now end
@@ -309,7 +351,7 @@ pcall(function() if PlayerGui:FindFirstChild("_MacroGUI") then PlayerGui:FindFir
 local sg = Instance.new("ScreenGui"); sg.Name = "_MacroGUI"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.Parent = PlayerGui
 local panel = Instance.new("Frame"); panel.Size = UDim2.new(0, 200, 0, 275); panel.Position = UDim2.new(0, 12, 0.5, -137); panel.BackgroundColor3 = Color3.fromRGB(14,14,18); panel.BorderSizePixel = 0; panel.Parent = sg; Instance.new("UICorner", panel).CornerRadius = UDim.new(0,10)
 local topBar = Instance.new("Frame"); topBar.Size = UDim2.new(1,0,0,26); topBar.BackgroundColor3 = Color3.fromRGB(26,26,34); topBar.BorderSizePixel = 0; topBar.Parent = panel; Instance.new("UICorner", topBar).CornerRadius = UDim.new(0,10)
-local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish + Teleport v6.0"
+local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish + Lock SunShard v7.0"
 titleLbl.Font = Enum.Font.GothamBold; titleLbl.TextSize = 11; titleLbl.TextColor3 = Color3.fromRGB(200,200,225); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.Parent = topBar
 
 local toggleBtn = Instance.new("TextButton"); toggleBtn.Size = UDim2.new(1,-16,0,30); toggleBtn.Position = UDim2.new(0,8,0,30); toggleBtn.BackgroundColor3 = Color3.fromRGB(35,175,95); toggleBtn.BorderSizePixel = 0; toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 12; toggleBtn.TextColor3 = Color3.new(1,1,1); toggleBtn.Text = "AUTO FISH: ON"; toggleBtn.Parent = panel; Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0,7)
@@ -378,24 +420,56 @@ topBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.M
 topBar.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag=false end end)
 UserInputService.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - dStart; panel.Position = UDim2.new(dPos.X.Scale, dPos.X.Offset+d.X, dPos.Y.Scale, dPos.Y.Offset+d.Y) end end)
 
+-- ══════════ AUTO SELL & AUTO LOCK ══════════
+local lockedItemsCache = setmetatable({}, {__mode = "k"}) -- Tránh rò rỉ bộ nhớ (memory leak)
+
 task.spawn(function()
     while true do
         if CFG.AutoSell and ByteNetReliable then
             local backpack = player:FindFirstChild("Backpack")
             if backpack then
                 local items = backpack:GetChildren()
-                local itemCount, foundSunshard = 0, false
+                local sellableCount = 0
+                local toolsToLock = {}
+                
                 for _, item in ipairs(items) do
                     if item:IsA("Tool") then
-                        itemCount = itemCount + 1
-                        if string.match(string.gsub(string.lower(item.Name), "%s+", ""), "sunshard") then foundSunshard = true; break end
+                        local n = string.lower(item.Name)
+                        local cleanName = string.gsub(n, "%s+", "")
+                        
+                        -- Lọc bỏ các tool cố định của game
+                        if not n:match("equipment") and not n:match("archive") then
+                            -- Nếu là Sun Shard
+                            if string.match(cleanName, "sunshard") then
+                                -- Khóa những cục chưa được gửi lệnh khóa
+                                if not lockedItemsCache[item] then
+                                    table.insert(toolsToLock, item)
+                                    lockedItemsCache[item] = true
+                                end
+                            else
+                                -- Nếu là cá rác (không phải equipment/archive/sunshard) -> Đếm để bán
+                                sellableCount = sellableCount + 1
+                            end
+                        end
                     end
                 end
-                if foundSunshard then
-                    CFG.AutoSell = false; updateGUI(); saveConfig()
-                    pcall(function() sellBtn.Text = "OFF (CÓ SUNSHARD)" end)
-                elseif itemCount >= 10 then
-                    pcall(function() ByteNetReliable:FireServer(SELL_BUF) end)
+                
+                -- Bắn lệnh Khóa (Lock) lên Server nếu có Sun Shard mới
+                if #toolsToLock > 0 then
+                    pcall(function()
+                        local args = { LOCK_BUF, toolsToLock }
+                        ByteNetReliable:FireServer(unpack(args))
+                        print("🔒 [Auto Lock] Đã tự động khóa " .. #toolsToLock .. " Sun Shard mới!")
+                    end)
+                    task.wait(0.5) -- Nghỉ nửa nhịp cho server cập nhật trạng thái khóa xong mới bán rác
+                end
+                
+                -- Nếu rác dồn đủ 30 món -> Bắn lệnh Bán
+                if sellableCount >= 30 then
+                    pcall(function() 
+                        ByteNetReliable:FireServer(SELL_BUF)
+                        print("💰 [Auto Sell] Đã thanh lý " .. sellableCount .. " rác!")
+                    end)
                 end
             end
         end
