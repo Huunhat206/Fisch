@@ -28,9 +28,11 @@ local CFG = {
 
 -- ══════════ THÊM ĐẢO / TỌA ĐỘ TẠI ĐÂY ══════════
 local ISLANDS = {
-    {Name = "Spawn", Pos = Vector3.new(0, 100, 0)},
-    {Name = "Đảo Cua", Pos = Vector3.new(1000, 50, 1000)},
-    {Name = "Đảo Băng", Pos = Vector3.new(-1500, 70, 2000)},
+    {Name = "Bay Island", Pos = Vector3.new(47, 27, 131)},
+    {Name = "Caldera Cay", Pos = Vector3.new(1795, 26, -1334)},
+    {Name = "Cresent Shore", Pos = Vector3.new(-1337, 29, 1593)},
+    {Name = "Sea Stack", Pos = Vector3.new(-1337, 29, 1593)},
+    {Name = "Cave Sea Stack", Pos = Vector3.new(1033, -52, 1397)},
     -- Copy dòng dưới và thay tên + tọa độ để thêm đảo mới:
     -- {Name = "Tên Đảo Mới", Pos = Vector3.new(X, Y, Z)},
 }
