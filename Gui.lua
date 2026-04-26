@@ -14,9 +14,10 @@ local CFG = {
     AutoSell       = false,
     SellInterval   = 3.0,
     IdleClickDelay = 2.0,   
-    EarlyHit       = 0.0,   -- Không cần bù nữa vì dùng Lock Line
+    EarlyHit       = 0.0,   
     CastDelay      = 0.15,  
-    LockLine       = true,  -- Khóa vạch đỏ
+    LockLine       = true,  
+    QTEOpenDelay   = 0.4,   -- THỜI GIAN CHỜ SAU KHI VÒNG HIỆN RA MỚI CLICK (Chống click non)
     Debug          = false,
 }
 
@@ -165,6 +166,7 @@ local lastIdleOpen  = 0
 local lastHitFire   = 0
 local wasQTEActive  = false  
 local justClosed    = false  
+local qteOpenedTime = 0     -- LƯU LẠI THỜI GIAN VÒNG VỪA MỞ
 
 RunService.Heartbeat:Connect(function()
     if not CFG.Enabled then return end
@@ -175,6 +177,11 @@ RunService.Heartbeat:Connect(function()
     if qteGui and qteGui.Enabled then
         local main = qteGui:FindFirstChild("Main")
         if main and main.Visible then qteActive = true end
+    end
+
+    -- Bắt đúng khoảnh khắc vòng QTE vừa hiện lên
+    if not wasQTEActive and qteActive then
+        qteOpenedTime = now
     end
 
     if wasQTEActive and not qteActive then
@@ -249,9 +256,12 @@ RunService.Heartbeat:Connect(function()
                 if n then arcDeg = tonumber(n) or 15 end
 
                 if angleDiff(lineRot, normAngle(barRot)) <= arcDeg / 2 then
-                    if now - lastHitFire >= 0.05 then
-                        fireQTEHit()
-                        lastHitFire = now
+                    -- Kiểm tra xem vòng đã mở đủ lâu chưa (chống click non)
+                    if now - qteOpenedTime >= CFG.QTEOpenDelay then
+                        if now - lastHitFire >= 0.05 then
+                            fireQTEHit()
+                            lastHitFire = now
+                        end
                     end
                 end
             end
@@ -266,7 +276,7 @@ local sg = Instance.new("ScreenGui"); sg.Name = "_MacroGUI"; sg.ResetOnSpawn = f
 local panel = Instance.new("Frame"); panel.Size = UDim2.new(0, 200, 0, 215); panel.Position = UDim2.new(0, 12, 0.5, -97); panel.BackgroundColor3 = Color3.fromRGB(14,14,18); panel.BorderSizePixel = 0; panel.Parent = sg; Instance.new("UICorner", panel).CornerRadius = UDim.new(0,10)
 local topBar = Instance.new("Frame"); topBar.Size = UDim2.new(1,0,0,26); topBar.BackgroundColor3 = Color3.fromRGB(26,26,34); topBar.BorderSizePixel = 0; topBar.Parent = panel; Instance.new("UICorner", topBar).CornerRadius = UDim.new(0,10)
 
-local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish Lock Line v5.1"
+local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish Lock Line v5.2"
 titleLbl.Font = Enum.Font.GothamBold; titleLbl.TextSize = 11; titleLbl.TextColor3 = Color3.fromRGB(200,200,225); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.Parent = topBar
 
 local toggleBtn = Instance.new("TextButton"); toggleBtn.Size = UDim2.new(1,-16,0,32); toggleBtn.Position = UDim2.new(0,8,0,30); toggleBtn.BackgroundColor3 = Color3.fromRGB(35,175,95); toggleBtn.BorderSizePixel = 0
@@ -279,7 +289,6 @@ local bufLbl = Instance.new("TextLabel"); bufLbl.Size = UDim2.new(1,-16,0,13); b
 local statusLbl = Instance.new("TextLabel"); statusLbl.Size = UDim2.new(1,-16,0,13); statusLbl.Position = UDim2.new(0,8,0,118); statusLbl.BackgroundTransparency = 1; statusLbl.Font = Enum.Font.Gotham; statusLbl.TextSize = 10; statusLbl.TextColor3 = Color3.fromRGB(100,100,130); statusLbl.Text = "○ Đợi câu..."; statusLbl.TextXAlignment = Enum.TextXAlignment.Left; statusLbl.Parent = panel
 local castLbl = Instance.new("TextLabel"); castLbl.Size = UDim2.new(1,-16,0,13); castLbl.Position = UDim2.new(0,8,0,133); castLbl.BackgroundTransparency = 1; castLbl.Font = Enum.Font.Gotham; castLbl.TextSize = 10; castLbl.TextColor3 = Color3.fromRGB(100,180,255); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay); castLbl.TextXAlignment = Enum.TextXAlignment.Left; castLbl.Parent = panel
 
--- Nút Lock Line Toggle
 local lockBtn = Instance.new("TextButton")
 lockBtn.Size = UDim2.new(1,-16,0,22); lockBtn.Position = UDim2.new(0,8,0,152)
 lockBtn.BackgroundColor3 = Color3.fromRGB(40,100,175); lockBtn.BorderSizePixel = 0
@@ -360,4 +369,4 @@ task.spawn(function()
     end
 end)
 
-print("[Fish & Sell v5.1] Hoàn tất Revert VIM!")
+print("[Fish & Sell v5.2] Đã sửa lỗi click non!")
