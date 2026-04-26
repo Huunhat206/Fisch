@@ -4,10 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService  = game:GetService("UserInputService")
 local VirtualUser       = game:GetService("VirtualUser")
 local VIM               = game:GetService("VirtualInputManager")
+local HttpService       = game:GetService("HttpService")
 
 local player    = Players.LocalPlayer
 local PlayerGui = player.PlayerGui
 local camera    = workspace.CurrentCamera
+
+local CONFIG_FILE = "FishSell_Config.json"
 
 local CFG = {
     Enabled        = true,
@@ -21,17 +24,33 @@ local CFG = {
     Debug          = false,
 }
 
+-- ══════════ LOAD & SAVE CONFIG ══════════
+if isfile and readfile and isfile(CONFIG_FILE) then
+    pcall(function()
+        local data = HttpService:JSONDecode(readfile(CONFIG_FILE))
+        if type(data) == "table" then
+            for k, v in pairs(data) do
+                if CFG[k] ~= nil then CFG[k] = v end
+            end
+        end
+    end)
+end
+
+local function saveConfig()
+    if writefile then
+        pcall(function()
+            writefile(CONFIG_FILE, HttpService:JSONEncode(CFG))
+        end)
+    end
+end
+
 -- ══════════ RANDOM SAFE ZONE LOGIC ══════════
--- Random một điểm bất kỳ trong khu vực an toàn (Bầu trời/Mặt biển phía trên nhân vật)
 local function getRandomSafeZone()
     local vp = camera.ViewportSize
-    -- Trục X: Từ 30% đến 70% chiều ngang màn hình
     local minX = math.floor(vp.X * 0.3)
     local maxX = math.floor(vp.X * 0.7)
-    -- Trục Y: Từ 15% đến 35% chiều dọc (Né thanh menu Roblox trên cùng và UI dưới đáy)
     local minY = math.floor(vp.Y * 0.15)
     local maxY = math.floor(vp.Y * 0.35)
-    
     return Vector2.new(math.random(minX, maxX), math.random(minY, maxY))
 end
 
@@ -59,9 +78,7 @@ local function tryOpenFishing()
         local tool = char and char:FindFirstChildOfClass("Tool")
         if tool then tool:Activate() end
         
-        -- Lấy tọa độ ngẫu nhiên
         local safePos = getRandomSafeZone()
-        
         VirtualUser:CaptureController()
         VirtualUser:Button1Down(safePos, camera.CFrame)
         task.wait(0.1)
@@ -138,7 +155,6 @@ local function fireQTEHit()
         if fired then return end
     end
     
-    -- VIM Backup cũng dùng điểm mù ngẫu nhiên
     local safePos = getRandomSafeZone()
     local center = qteClickFunc
         and (qteClickFunc.AbsolutePosition + qteClickFunc.AbsoluteSize / 2)
@@ -203,9 +219,7 @@ RunService.Heartbeat:Connect(function()
         if main and main.Visible then qteActive = true end
     end
 
-    if not wasQTEActive and qteActive then
-        qteOpenedTime = now
-    end
+    if not wasQTEActive and qteActive then qteOpenedTime = now end
 
     if wasQTEActive and not qteActive then
         lockedBar  = nil
@@ -232,9 +246,7 @@ RunService.Heartbeat:Connect(function()
 
     if not qteActive then return end
 
-    if not LineObj or not LineObj.Parent or not BarsFolder or not BarsFolder.Parent then
-        initRefs()
-    end
+    if not LineObj or not LineObj.Parent or not BarsFolder or not BarsFolder.Parent then initRefs() end
     
     currentLineObj = LineObj
     if not LineObj or not BarsFolder then return end
@@ -249,9 +261,7 @@ RunService.Heartbeat:Connect(function()
         end
         lockedBar = targetBar
 
-        if lockedBar then
-            pcall(function() LineObj.Rotation = lockedBar.Rotation end)
-        end
+        if lockedBar then pcall(function() LineObj.Rotation = lockedBar.Rotation end) end
     end
 
     local lineRot = 0
@@ -291,12 +301,10 @@ pcall(function() if PlayerGui:FindFirstChild("_MacroGUI") then PlayerGui:FindFir
 local sg = Instance.new("ScreenGui"); sg.Name = "_MacroGUI"; sg.ResetOnSpawn = false; sg.IgnoreGuiInset = true; sg.Parent = PlayerGui
 local panel = Instance.new("Frame"); panel.Size = UDim2.new(0, 200, 0, 215); panel.Position = UDim2.new(0, 12, 0.5, -97); panel.BackgroundColor3 = Color3.fromRGB(14,14,18); panel.BorderSizePixel = 0; panel.Parent = sg; Instance.new("UICorner", panel).CornerRadius = UDim.new(0,10)
 local topBar = Instance.new("Frame"); topBar.Size = UDim2.new(1,0,0,26); topBar.BackgroundColor3 = Color3.fromRGB(26,26,34); topBar.BorderSizePixel = 0; topBar.Parent = panel; Instance.new("UICorner", topBar).CornerRadius = UDim.new(0,10)
-local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish Lock Line v5.6"
+local titleLbl = Instance.new("TextLabel"); titleLbl.Size = UDim2.new(1,-10,1,0); titleLbl.Position = UDim2.new(0,10,0,0); titleLbl.BackgroundTransparency = 1; titleLbl.Text = "🎣 Fish Lock Line v5.7"
 titleLbl.Font = Enum.Font.GothamBold; titleLbl.TextSize = 11; titleLbl.TextColor3 = Color3.fromRGB(200,200,225); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.Parent = topBar
-local toggleBtn = Instance.new("TextButton"); toggleBtn.Size = UDim2.new(1,-16,0,32); toggleBtn.Position = UDim2.new(0,8,0,30); toggleBtn.BackgroundColor3 = Color3.fromRGB(35,175,95); toggleBtn.BorderSizePixel = 0
-toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 13; toggleBtn.TextColor3 = Color3.new(1,1,1); toggleBtn.Text = "AUTO FISH: ON"; toggleBtn.Parent = panel; Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0,7)
-local sellBtn = Instance.new("TextButton"); sellBtn.Size = UDim2.new(1,-16,0,30); sellBtn.Position = UDim2.new(0,8,0,67); sellBtn.BackgroundColor3 = Color3.fromRGB(175,45,45); sellBtn.BorderSizePixel = 0
-sellBtn.Font = Enum.Font.GothamBold; sellBtn.TextSize = 12; sellBtn.TextColor3 = Color3.new(1,1,1); sellBtn.Text = "AUTO SELL: OFF"; sellBtn.Parent = panel; Instance.new("UICorner", sellBtn).CornerRadius = UDim.new(0,7)
+local toggleBtn = Instance.new("TextButton"); toggleBtn.Size = UDim2.new(1,-16,0,32); toggleBtn.Position = UDim2.new(0,8,0,30); toggleBtn.BackgroundColor3 = Color3.fromRGB(35,175,95); toggleBtn.BorderSizePixel = 0; toggleBtn.Font = Enum.Font.GothamBold; toggleBtn.TextSize = 13; toggleBtn.TextColor3 = Color3.new(1,1,1); toggleBtn.Text = "AUTO FISH: ON"; toggleBtn.Parent = panel; Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0,7)
+local sellBtn = Instance.new("TextButton"); sellBtn.Size = UDim2.new(1,-16,0,30); sellBtn.Position = UDim2.new(0,8,0,67); sellBtn.BackgroundColor3 = Color3.fromRGB(175,45,45); sellBtn.BorderSizePixel = 0; sellBtn.Font = Enum.Font.GothamBold; sellBtn.TextSize = 12; sellBtn.TextColor3 = Color3.new(1,1,1); sellBtn.Text = "AUTO SELL: OFF"; sellBtn.Parent = panel; Instance.new("UICorner", sellBtn).CornerRadius = UDim.new(0,7)
 local bufLbl = Instance.new("TextLabel"); bufLbl.Size = UDim2.new(1,-16,0,13); bufLbl.Position = UDim2.new(0,8,0,103); bufLbl.BackgroundTransparency = 1; bufLbl.Font = Enum.Font.Gotham; bufLbl.TextSize = 10; bufLbl.TextColor3 = Color3.fromRGB(200,140,50); bufLbl.Text = "Click 1 lần để capture buffer"; bufLbl.TextXAlignment = Enum.TextXAlignment.Left; bufLbl.Parent = panel
 local statusLbl = Instance.new("TextLabel"); statusLbl.Size = UDim2.new(1,-16,0,13); statusLbl.Position = UDim2.new(0,8,0,118); statusLbl.BackgroundTransparency = 1; statusLbl.Font = Enum.Font.Gotham; statusLbl.TextSize = 10; statusLbl.TextColor3 = Color3.fromRGB(100,100,130); statusLbl.Text = "○ Đợi câu..."; statusLbl.TextXAlignment = Enum.TextXAlignment.Left; statusLbl.Parent = panel
 local castLbl = Instance.new("TextLabel"); castLbl.Size = UDim2.new(1,-16,0,13); castLbl.Position = UDim2.new(0,8,0,133); castLbl.BackgroundTransparency = 1; castLbl.Font = Enum.Font.Gotham; castLbl.TextSize = 10; castLbl.TextColor3 = Color3.fromRGB(100,180,255); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay); castLbl.TextXAlignment = Enum.TextXAlignment.Left; castLbl.Parent = panel
@@ -304,14 +312,31 @@ local lockBtn = Instance.new("TextButton"); lockBtn.Size = UDim2.new(1,-16,0,22)
 local btnRow = Instance.new("Frame"); btnRow.Size = UDim2.new(1,-16,0,24); btnRow.Position = UDim2.new(0,8,0,182); btnRow.BackgroundTransparency = 1; btnRow.Parent = panel
 local function makeBtn(text, xoff) local b = Instance.new("TextButton"); b.Size = UDim2.new(0,88,1,0); b.Position = UDim2.new(0,xoff,0,0); b.BackgroundColor3 = Color3.fromRGB(50,50,70); b.BorderSizePixel = 0; b.Font = Enum.Font.GothamBold; b.TextSize = 12; b.TextColor3 = Color3.new(1,1,1); b.Text = text; b.Parent = btnRow; Instance.new("UICorner", b).CornerRadius = UDim.new(0,6); return b end
 local bcM = makeBtn("- Cast", 0); local bcP = makeBtn("+ Cast", 96)
-bcM.MouseButton1Click:Connect(function() CFG.CastDelay = math.max(0, CFG.CastDelay - 0.05); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay) end)
-bcP.MouseButton1Click:Connect(function() CFG.CastDelay = math.min(2, CFG.CastDelay + 0.05); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay) end)
+
+-- ══════════ GUI UPDATE CẤU HÌNH ĐÃ LƯU ══════════
+local function updateGUI()
+    toggleBtn.BackgroundColor3 = CFG.Enabled and Color3.fromRGB(35,175,95) or Color3.fromRGB(175,45,45)
+    toggleBtn.Text = CFG.Enabled and "AUTO FISH: ON" or "AUTO FISH: OFF"
+    sellBtn.BackgroundColor3 = CFG.AutoSell and Color3.fromRGB(35,175,95) or Color3.fromRGB(175,45,45)
+    sellBtn.Text = CFG.AutoSell and "AUTO SELL: ON" or "AUTO SELL: OFF"
+    lockBtn.BackgroundColor3 = CFG.LockLine and Color3.fromRGB(40,100,175) or Color3.fromRGB(60,60,80)
+    lockBtn.Text = CFG.LockLine and "🔒 Lock Line: ON" or "🔒 Lock Line: OFF"
+    castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay)
+end
+updateGUI() -- Gọi ngay khi load GUI
+
+bcM.MouseButton1Click:Connect(function() CFG.CastDelay = math.max(0, CFG.CastDelay - 0.05); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay); saveConfig() end)
+bcP.MouseButton1Click:Connect(function() CFG.CastDelay = math.min(2, CFG.CastDelay + 0.05); castLbl.Text = string.format("Cast delay: %.2fs", CFG.CastDelay); saveConfig() end)
 
 lockBtn.MouseButton1Click:Connect(function()
     CFG.LockLine = not CFG.LockLine
-    lockBtn.BackgroundColor3 = CFG.LockLine and Color3.fromRGB(40,100,175) or Color3.fromRGB(60,60,80)
-    lockBtn.Text = CFG.LockLine and "🔒 Lock Line: ON" or "🔒 Lock Line: OFF"
+    updateGUI(); saveConfig()
 end)
+
+local function setFishing(s) CFG.Enabled = s; updateGUI(); saveConfig() end
+local function setSelling(s) CFG.AutoSell = s; updateGUI(); saveConfig() end
+toggleBtn.MouseButton1Click:Connect(function() setFishing(not CFG.Enabled) end)
+sellBtn.MouseButton1Click:Connect(function() setSelling(not CFG.AutoSell) end)
 
 RunService.Heartbeat:Connect(function()
     if lastHitBuffer then bufLbl.Text = "✓ Buffer captured!"; bufLbl.TextColor3 = Color3.fromRGB(80,200,120) end
@@ -325,10 +350,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-local function setFishing(s) CFG.Enabled = s; toggleBtn.BackgroundColor3 = s and Color3.fromRGB(35,175,95) or Color3.fromRGB(175,45,45); toggleBtn.Text = s and "AUTO FISH: ON" or "AUTO FISH: OFF" end
-local function setSelling(s) CFG.AutoSell = s; sellBtn.BackgroundColor3 = s and Color3.fromRGB(35,175,95) or Color3.fromRGB(175,45,45); sellBtn.Text = s and "AUTO SELL: ON" or "AUTO SELL: OFF" end
-toggleBtn.MouseButton1Click:Connect(function() setFishing(not CFG.Enabled) end)
-sellBtn.MouseButton1Click:Connect(function() setSelling(not CFG.AutoSell) end)
 local drag, dStart, dPos = false, nil, nil
 topBar.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag=true; dStart=i.Position; dPos=panel.Position end end)
 topBar.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag=false end end)
@@ -364,4 +385,4 @@ task.spawn(function()
     end
 end)
 
-print("[Fish & Sell v5.6] Random Area Click Active!")
+print("[Fish & Sell v5.7] Config Auto-Save Active!")
